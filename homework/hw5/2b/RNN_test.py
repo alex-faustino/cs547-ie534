@@ -11,11 +11,11 @@ import torch.optim as optim
 
 from RNN_model import RNN_model
 
-#imdb_dictionary = np.load('preprocessed_data/imdb_dictionary.npy')
-vocab_size = 8000
+glove_embeddings = np.load('preprocessed_data/glove_embeddings.npy')
+vocab_size = 100000
 
-x_train = []
-with io.open('preprocessed_data/imdb_train.txt','r',encoding='utf-8') as f:
+x_test = []
+with io.open('preprocessed_data/imdb_test_glove88.txt','r',encoding='utf-8') as f:
     lines = f.readlines()
 for line in lines:
     line = line.strip()
@@ -24,21 +24,20 @@ for line in lines:
 
     line[line>vocab_size] = 0
 
-    x_train.append(line)
-x_train = x_train[0:25000]
-y_train = np.zeros((25000,))
-y_train[0:12500] = 1
+    x_test.append(line)
+y_test = np.zeros((25000,))
+y_test[0:12500] = 1
 
 vocab_size += 1
 
-model = RNN_model(vocab_size,50)
+model = torch.load('rnn.model')
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model.to(device)
 
-# opt = 'sgd'
-# LR = 0.1
-opt = 'adam'
-LR = 0.001
+opt = 'sgd'
+LR = 0.1
+# opt = 'adam'
+# LR = 0.001
 if(opt=='adam'):
     optimizer = optim.Adam(model.parameters(), lr=LR)
 elif(opt=='sgd'):
@@ -46,18 +45,15 @@ elif(opt=='sgd'):
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10)
 
 batch_size = 200
-no_of_epochs = 20
-L_Y_train = len(y_train)
+no_of_epochs = 10
+L_Y_test = len(y_test)
 
-train_loss = []
-train_accu = []
+test_loss = []
+test_accu = []
 
 for epoch in range(no_of_epochs):
-    if(opt=='sgd'):
-        scheduler.step()
-
-    # training
-    model.train()
+    # test
+    model.eval()
 
     epoch_acc = 0.0
     epoch_loss = 0.0
@@ -66,12 +62,12 @@ for epoch in range(no_of_epochs):
 
     time1 = time.time()
     
-    I_permutation = np.random.permutation(L_Y_train)
+    I_permutation = np.random.permutation(L_Y_test)
 
-    for i in range(0, L_Y_train, batch_size):
+    for i in range(0, L_Y_test, batch_size):
 
-        x_input2 = [x_train[j] for j in I_permutation[i:i+batch_size]]
-        sequence_length = 100
+        x_input2 = [x_test[j] for j in I_permutation[i:i+batch_size]]
+        sequence_length = (epoch + 1)*50
         x_input = np.zeros((batch_size,sequence_length),dtype=np.int)
         for j in range(batch_size):
             x = np.asarray(x_input2[j])
@@ -81,16 +77,14 @@ for epoch in range(no_of_epochs):
             else:
                 start_index = np.random.randint(sl-sequence_length+1)
                 x_input[j,:] = x[start_index:(start_index+sequence_length)]
-        y_input = y_train[I_permutation[i:i+batch_size]]
+        x_input = glove_embeddings[x_input]
+        y_input = y_test[I_permutation[i:i+batch_size]]
 
-        data = torch.LongTensor(x_input).to(device)
+        data = torch.FloatTensor(x_input).to(device)
         target = torch.FloatTensor(y_input).to(device)
 
-        optimizer.zero_grad()
-        loss, pred = model(data,target,train=True)
-        loss.backward()
-
-        optimizer.step()   # update weights
+        with torch.no_grad():
+            loss, pred = model(data,target)
         
         prediction = pred >= 0.0
         truth = target >= 0.5
@@ -102,12 +96,14 @@ for epoch in range(no_of_epochs):
     epoch_acc /= epoch_counter
     epoch_loss /= (epoch_counter/batch_size)
 
-    train_loss.append(epoch_loss)
-    train_accu.append(epoch_acc)
+    test_loss.append(epoch_loss)
+    test_accu.append(epoch_acc)
 
-    print(epoch, "%.2f" % (epoch_acc*100.0), "%.4f" % epoch_loss, "%.4f" % float(time.time()-time1))
+    time2 = time.time()
+    time_elapsed = time2 - time1
 
-torch.save(model,'rnn.model')
-data = [train_loss,train_accu]
+    print(sequence_length, "%.2f" % (epoch_acc*100.0), "%.4f" % epoch_loss, "%.4f" % float(time.time()-time1))
+
+data = [test_loss, test_accu]
 data = np.asarray(data)
 np.save('data.npy',data)

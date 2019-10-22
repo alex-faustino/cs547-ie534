@@ -11,11 +11,11 @@ import torch.optim as optim
 
 from RNN_model import RNN_model
 
-#imdb_dictionary = np.load('preprocessed_data/imdb_dictionary.npy')
-vocab_size = 8000
+glove_embeddings = np.load('preprocessed_data/glove_embeddings.npy')
+vocab_size = 100000
 
 x_train = []
-with io.open('preprocessed_data/imdb_train.txt','r',encoding='utf-8') as f:
+with io.open('preprocessed_data/imdb_train_glove.txt','r',encoding='utf-8') as f:
     lines = f.readlines()
 for line in lines:
     line = line.strip()
@@ -31,7 +31,7 @@ y_train[0:12500] = 1
 
 vocab_size += 1
 
-model = RNN_model(vocab_size,50)
+model = RNN_model(50)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model.to(device)
 
@@ -81,9 +81,10 @@ for epoch in range(no_of_epochs):
             else:
                 start_index = np.random.randint(sl-sequence_length+1)
                 x_input[j,:] = x[start_index:(start_index+sequence_length)]
+        x_input = glove_embeddings[x_input]
         y_input = y_train[I_permutation[i:i+batch_size]]
 
-        data = torch.LongTensor(x_input).to(device)
+        data = torch.FloatTensor(x_input).to(device)
         target = torch.FloatTensor(y_input).to(device)
 
         optimizer.zero_grad()
