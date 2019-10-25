@@ -62,6 +62,7 @@ L_Y_test = len(y_test)
 
 train_loss = []
 train_accu = []
+test_accu = []
 
 for epoch in range(no_of_epochs):
     if(opt=='sgd'):
