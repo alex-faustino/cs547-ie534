@@ -1,4 +1,6 @@
 {
-    "python.linting.enabled": false,
-    "python.pythonPath": "D:\\Users\\Penti\\Anaconda3\\envs\\cs547\\python.exe"
+    "python.linting.enabled": true,
+    "python.pythonPath": "C:\\Users\\Penti\\Miniconda3\\envs\\cs547\\python.exe",
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": true
 }
