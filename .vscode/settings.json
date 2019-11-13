@@ -1,4 +1,11 @@
 {
+<<<<<<< HEAD
     "python.linting.enabled": false,
     "python.pythonPath": "/Users/alex/miniconda3/envs/cs547/bin/python"
+=======
+    "python.linting.enabled": true,
+    "python.pythonPath": "C:\\Users\\Penti\\Miniconda3\\envs\\cs547\\python.exe",
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": true
+>>>>>>> ed6be03c84b957824ed03323636a30d30cd32ac3
 }
