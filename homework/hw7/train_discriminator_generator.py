@@ -99,16 +99,6 @@ if __name__ == '__main__':
     testloader = torch.utils.data.DataLoader(testset, batch_size,
                                              shuffle=False, num_workers=2)
 
-    # if continuing_from_checkpoint:
-    #     model = TheModelClass(*args, **kwargs)
-    #     optimizer = TheOptimizerClass(*args, **kwargs)
-
-    #     checkpoint = torch.load(PATH)
-    #     model.load_state_dict(checkpoint['model_state_dict'])
-    #     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    #     epoch = checkpoint['epoch']
-    #     loss = checkpoint['loss']
-
     # copy models to GPU
     aD = Discriminator()
     aG = Generator()
