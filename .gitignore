@@ -1,3 +1,6 @@
+# large zips
+*.zip
+
 # don't track data directory
 data/
 preprocessed_data/

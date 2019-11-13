@@ -1,4 +1,4 @@
 {
     "python.linting.enabled": false,
-    "python.pythonPath": "D:\\Users\\Penti\\Anaconda3\\envs\\cs547\\python.exe"
+    "python.pythonPath": "/Users/alex/miniconda3/envs/cs547/bin/python"
 }
