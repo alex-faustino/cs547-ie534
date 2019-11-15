@@ -7,20 +7,28 @@ import Model, Replay
 import random
 from collections import namedtuple
 
+
 class DQN:
-    def __init__(self, obs_space, act_space, lr=1e-4, replay_size=1000000, batch_size=32,
-                 discount=0.99, target_update=2500, eps_decay=500000, device=None):
+    def __init__(self, obs_space, act_space, lr=1e-4, replay_size=1000000,
+                 batch_size=32, discount=0.99, target_update=2500,
+                 eps_decay=500000, device=None):
         self.obs_space, self.act_space = obs_space, act_space
-        self.batch_size, self.discount, self.target_update = batch_size, discount, target_update
+        self.batch_size = batch_size
+        self.discount = discount
+        self.target_update = target_update
         self.device = device
 
         if len(obs_space.shape) == 1:
-            self.q_func = Model.TwoLayerFCNet(n_in=obs_space.shape[0], n_out=act_space.n).to(device)
-            self.target_q_func = Model.TwoLayerFCNet(n_in=obs_space.shape[0], n_out=act_space.n).to(device)
+            self.q_func = Model.TwoLayerFCNet(n_in=obs_space.shape[0],
+                                              n_out=act_space.n).to(device)
+            self.target_q_func = Model.TwoLayerFCNet(n_in=obs_space.shape[0],
+                                                     n_out=act_space.n).to(device)
             self.state_dtype = torch.float32
         elif len(obs_space.shape) == 3:
-            self.q_func = Model.SimpleCNN(n_in=obs_space.shape, n_out=act_space.n).to(device)
-            self.target_q_func = Model.SimpleCNN(n_in=obs_space.shape, n_out=act_space.n).to(device)
+            self.q_func = Model.SimpleCNN(n_in=obs_space.shape,
+                                          n_out=act_space.n).to(device)
+            self.target_q_func = Model.SimpleCNN(n_in=obs_space.shape,
+                                                 n_out=act_space.n).to(device)
             self.state_dtype = torch.uint8
         else:
             print ("observation shape not supported:", obs_space.shape)
@@ -29,14 +37,15 @@ class DQN:
         self.target_q_func.train()
 
         print ('parameters to optimize:',
-            [(name, p.shape, p.requires_grad) for name,p in self.q_func.named_parameters()],
-            '\n')
+               [(name, p.shape, p.requires_grad) for name, p in self.q_func.named_parameters()],
+               '\n')
         # self.optimizer = torch.optim.RMSprop(self.q_func.parameters(), lr=lr)
-        self.optimizer = torch.optim.Adam(self.q_func.parameters(), lr=lr, betas=(0.9,0.99), eps=1e-8)
+        self.optimizer = torch.optim.Adam(self.q_func.parameters(), lr=lr,
+                                          betas=(0.9, 0.99), eps=1e-8)
 
         # number of action steps done
         self.num_act_steps = 0
-        #self.eps_start, self.eps_end, self.eps_decay = 1.0, 0.01, eps_decay
+        # self.eps_start, self.eps_end, self.eps_decay = 1.0, 0.01, eps_decay
         self.eps_decay = eps_decay
         self.num_train_steps = 0
         self.double_q = True
@@ -45,16 +54,17 @@ class DQN:
 
     def compute_epsilon(self):
 
-        ### <<< Your Code Here
+        # <<< Your Code Here
         # linearly anneal from 1 to 0.01 in eps_decay steps
-        eps = '???' + ('???' - '???') * self.num_act_steps / self.eps_decay
-        eps = max('???', eps)
-        ### Your Code Ends >>>
+        eps = 1 + (.01 - 1)*self.num_act_steps/self.eps_decay
+        eps = max(.01, eps)
+        # Your Code Ends >>>
 
         return eps
 
     def act(self, obses):
-        obses = torch.as_tensor(obses, device=self.device, dtype=self.state_dtype)
+        obses = torch.as_tensor(obses, device=self.device,
+                                dtype=self.state_dtype)
 
         # if self.num_act_steps < self.eps_decay // 4:
         #     eps = 1.0 + (0.1 - 1.0) * self.num_act_steps / (self.eps_decay // 4)
@@ -77,35 +87,37 @@ class DQN:
         return actions
 
     def observe(self, obses, actions, transitions):
-        for s,a,(sn,r,t,_) in zip(obses, actions, transitions):
-            if t: # (s,a) leads to a terminal state
+        for s, a, (sn, r, t, _) in zip(obses, actions, transitions):
+            if t:  # (s,a) leads to a terminal state
                 sn = None
-            self.replay.add((s,a,r,sn))
+            self.replay.add((s, a, r, sn))
         if len(self.replay) > self.batch_size and self.replay.cur_batch is None:
             self.replay.sample_torch(self.batch_size, self.device)
 
     def train(self):
-        #self.replay.get_current_batch(self.batch_size, self.device)
+        # self.replay.get_current_batch(self.batch_size, self.device)
         state_batch, action_batch, reward_batch, non_terminal_mask, non_terminal_next_states = self.replay.cur_batch
         self.replay.cur_batch = None
 
-        q_values = self.q_func(state_batch)[torch.arange(self.batch_size), action_batch]
+        q_values = self.q_func(state_batch)[torch.arange(self.batch_size),
+                                            action_batch]
 
         next_state_values = torch.zeros(self.batch_size, device=self.device)
         next_q_values = self.target_q_func(non_terminal_next_states).detach()
 
-        ### <<< Your Code Here
+        # <<< Your Code Here
         if self.double_q:
             # Hint: try using self.q_func(non_terminal_next_states).argmax(1)
             next_state_values[non_terminal_mask] = next_q_values[
-                torch.arange(len(next_q_values)), '???']
+                torch.arange(len(next_q_values)),
+                self.q_func(non_terminal_next_states).argmax(1)]
         else:
             next_state_values[non_terminal_mask] = next_q_values.max(1)[0]
 
-        target_q_values = '???' * self.discount + '???'
+        target_q_values = next_state_values*self.discount + reward_batch
 
-        loss = '???'  # Hint: try using q_values, target_q_values
-        ### Your Code Ends >>>
+        loss = F.smooth_l1_loss(q_values, target_q_values)
+        # Your Code Ends >>>
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -125,7 +137,8 @@ class DQN:
         return loss.item()
 
     def save(self, path):
-        torch.save([self.q_func.state_dict(), self.target_q_func.state_dict(), self.optimizer.state_dict()], path)
+        torch.save([self.q_func.state_dict(), self.target_q_func.state_dict(),
+                    self.optimizer.state_dict()], path)
 
     def load(self, path):
         s1, s2, s3 = torch.load(path, map_location=self.device)
@@ -137,8 +150,9 @@ class DQN:
 # Buffer = namedtuple('Buffer', ('state', 'action', 'reward', 'terminal', 'last_state'))
 
 class ActorCritic:
-    def __init__(self, obs_space, act_space, lr=0.001, nproc=1, seg_len=16, discount=0.99,
-                 entropy_coef=0.01, value_coef=0.5, device=None, shared_net=True):
+    def __init__(self, obs_space, act_space, lr=0.001, nproc=1, seg_len=16,
+                 discount=0.99, entropy_coef=0.01, value_coef=0.5,
+                 device=None, shared_net=True):
         self.obs_space, self.act_space = obs_space, act_space
         self.discount, self.entropy_coef, self.value_coef = discount, entropy_coef, value_coef
         self.nproc, self.seg_len = nproc, seg_len
@@ -146,17 +160,22 @@ class ActorCritic:
 
         if len(obs_space.shape) == 1:
             shared_net = False
-            self.actor = Model.TwoLayerFCNet(n_in=obs_space.shape[0], n_out=act_space.n).to(device)
-            self.critic = Model.TwoLayerFCNet(n_in=obs_space.shape[0], n_out=1).to(device)
+            self.actor = Model.TwoLayerFCNet(n_in=obs_space.shape[0],
+                                             n_out=act_space.n).to(device)
+            self.critic = Model.TwoLayerFCNet(n_in=obs_space.shape[0],
+                                              n_out=1).to(device)
             self.state_dtype = torch.float32
         elif len(obs_space.shape) == 3:
             if shared_net:
-                self.actor_and_critic = Model.SimpleCNN(n_in=obs_space.shape, n_out=[act_space.n, 1]).to(device)
+                self.actor_and_critic = Model.SimpleCNN(n_in=obs_space.shape,
+                                                        n_out=[act_space.n, 1]).to(device)
                 self.actor = lambda obses: self.actor_and_critic(obses, head=0)
                 self.critic = lambda obses: self.actor_and_critic(obses, head=1)
             else:
-                self.actor = Model.SimpleCNN(n_in=obs_space.shape, n_out=act_space.n).to(device)
-                self.critic = Model.SimpleCNN(n_in=obs_space.shape, n_out=1).to(device)
+                self.actor = Model.SimpleCNN(n_in=obs_space.shape,
+                                             n_out=act_space.n).to(device)
+                self.critic = Model.SimpleCNN(n_in=obs_space.shape,
+                                              n_out=1).to(device)
             self.state_dtype = torch.uint8
         else:
             print ("observation shape not supported:", obs_space.shape)
@@ -171,8 +190,8 @@ class ActorCritic:
         #                                       lr=lr, alpha=0.99, eps=1e-5)
 
         if shared_net:
-            self.optimizer = torch.optim.Adam(self.actor_and_critic.parameters(), lr=lr,
-                betas=(0.9,0.99), eps=1e-6)
+            self.optimizer = torch.optim.Adam(self.actor_and_critic.parameters(),
+                                              lr=lr, betas=(0.9,0.99), eps=1e-6)
             print ('shared net = True, parameters to optimize:',
                 [(name, p.shape, p.requires_grad) for name,p in self.actor_and_critic.named_parameters()],
                 '\n')
@@ -201,13 +220,15 @@ class ActorCritic:
         nproc = len(obses)
         # self.states[:, self.step] = obses
         # self.actions[:, self.step] = actions
-        for i,(sn,r,terminal,_) in enumerate(transitions):
-            self.states[i, self.step] = torch.as_tensor(obses[i], dtype=self.state_dtype)
+        for i, (sn, r, terminal, _) in enumerate(transitions):
+            self.states[i, self.step] = torch.as_tensor(obses[i],
+                                                        dtype=self.state_dtype)
             self.actions[i, self.step] = actions[i]
             self.rewards[i, self.step] = r
             R = 0.0
             if self.step == self.seg_len-1 and not terminal:
-                R = self.critic(torch.as_tensor([sn], dtype=self.state_dtype, device=self.device)).item()
+                R = self.critic(torch.as_tensor([sn], dtype=self.state_dtype,
+                                                device=self.device)).item()
                 terminal = True
             if terminal:
                 # compute discounted reward backward along the trajectory
@@ -230,22 +251,22 @@ class ActorCritic:
         # advantage = advantage.clamp(-2, 2).detach() + advantage - advantage.detach()
         # advantage = (advantage - advantage.mean().detach())/ (1.0 + advantage.std().detach())
         advantage = advantage / (1.0 + advantage.std().detach())
-        advantage_detach = advantage.detach() #* self.advantage_normalizer
+        advantage_detach = advantage.detach()  # self.advantage_normalizer
 
         # compute losses
         logits = self.actor(states)
         dist = Categorical(logits=logits)
 
-        ### <<< Your Code Here
+        # <<< Your Code Here
         # use 'advantage_detach', 'dist' and 'actions' to compute this; double-check the sign of your expression!
-        policy_loss = '???'
+        policy_loss = (advantage_detach*dist.log_prob(actions)).mean()
 
         # use the entropy function of 'dist' to compute this
-        entropy_loss = '???'
+        entropy_loss = dist.entropy().mean()
 
         # value loss is the squared loss on variable 'advantage'
-        value_loss = '???'
-        ### Your Code Ends >>>
+        value_loss = advantage.pow(2).mean()
+        # Your Code Ends >>>
 
         loss = -policy_loss - self.entropy_coef * entropy_loss + self.value_coef * value_loss
 
