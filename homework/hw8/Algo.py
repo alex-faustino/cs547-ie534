@@ -1,11 +1,12 @@
 # RL algorithms: DQN and simplified Actor-Critic
+import random
 
 import torch
 import torch.nn.functional as F
 from torch.distributions import Categorical
-import Model, Replay
-import random
-from collections import namedtuple
+
+import Model
+import Replay
 
 
 class DQN:
@@ -21,8 +22,9 @@ class DQN:
         if len(obs_space.shape) == 1:
             self.q_func = Model.TwoLayerFCNet(n_in=obs_space.shape[0],
                                               n_out=act_space.n).to(device)
-            self.target_q_func = Model.TwoLayerFCNet(n_in=obs_space.shape[0],
-                                                     n_out=act_space.n).to(device)
+            self.target_q_func = \
+                Model.TwoLayerFCNet(n_in=obs_space.shape[0],
+                                    n_out=act_space.n).to(device)
             self.state_dtype = torch.float32
         elif len(obs_space.shape) == 3:
             self.q_func = Model.SimpleCNN(n_in=obs_space.shape,
@@ -31,14 +33,15 @@ class DQN:
                                                  n_out=act_space.n).to(device)
             self.state_dtype = torch.uint8
         else:
-            print ("observation shape not supported:", obs_space.shape)
+            print("observation shape not supported:", obs_space.shape)
             raise
         self.q_func.train()
         self.target_q_func.train()
 
-        print ('parameters to optimize:',
-               [(name, p.shape, p.requires_grad) for name, p in self.q_func.named_parameters()],
-               '\n')
+        print('parameters to optimize:',
+              [(name, p.shape, p.requires_grad) for name, p in
+               self.q_func.named_parameters()],
+              '\n')
         # self.optimizer = torch.optim.RMSprop(self.q_func.parameters(), lr=lr)
         self.optimizer = torch.optim.Adam(self.q_func.parameters(), lr=lr,
                                           betas=(0.9, 0.99), eps=1e-8)
@@ -65,13 +68,6 @@ class DQN:
     def act(self, obses):
         obses = torch.as_tensor(obses, device=self.device,
                                 dtype=self.state_dtype)
-
-        # if self.num_act_steps < self.eps_decay // 4:
-        #     eps = 1.0 + (0.1 - 1.0) * self.num_act_steps / (self.eps_decay // 4)
-        # elif self.num_act_steps < self.eps_decay:
-        #     eps = 0.1 + (0.01 - 0.1) * self.num_act_steps / self.eps_decay
-        # else:
-        #     eps = 0.01
         eps = self.compute_epsilon()
         self.num_act_steps += 1
 
@@ -91,12 +87,14 @@ class DQN:
             if t:  # (s,a) leads to a terminal state
                 sn = None
             self.replay.add((s, a, r, sn))
-        if len(self.replay) > self.batch_size and self.replay.cur_batch is None:
+        if len(self.replay) > self.batch_size and\
+                self.replay.cur_batch is None:
             self.replay.sample_torch(self.batch_size, self.device)
 
     def train(self):
         # self.replay.get_current_batch(self.batch_size, self.device)
-        state_batch, action_batch, reward_batch, non_terminal_mask, non_terminal_next_states = self.replay.cur_batch
+        state_batch, action_batch, reward_batch,\
+            non_terminal_mask, non_terminal_next_states = self.replay.cur_batch
         self.replay.cur_batch = None
 
         q_values = self.q_func(state_batch)[torch.arange(self.batch_size),
@@ -137,24 +135,27 @@ class DQN:
         return loss.item()
 
     def save(self, path):
-        torch.save([self.q_func.state_dict(), self.target_q_func.state_dict(),
-                    self.optimizer.state_dict()], path)
+        state = {'q': self.q_func.state_dict(),
+                 'target_q': self.target_q_func.state_dict(),
+                 'optimizer': self.optimizer.state_dict(),
+                 'num_act_steps': self.num_act_steps}
+        torch.save(state, path)
 
     def load(self, path):
-        s1, s2, s3 = torch.load(path, map_location=self.device)
-        self.q_func.load_state_dict(s1)
-        self.target_q_func.load_state_dict(s2)
-        self.optimizer.load_state_dict(s3)
+        checkpoint = torch.load(path, map_location=self.device)
+        self.q_func.load_state_dict(checkpoint['q'])
+        self.target_q_func.load_state_dict(checkpoint['target_q'])
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
+        self.num_act_steps = checkpoint['num_act_steps']
 
-
-# Buffer = namedtuple('Buffer', ('state', 'action', 'reward', 'terminal', 'last_state'))
 
 class ActorCritic:
     def __init__(self, obs_space, act_space, lr=0.001, nproc=1, seg_len=16,
                  discount=0.99, entropy_coef=0.01, value_coef=0.5,
                  device=None, shared_net=True):
         self.obs_space, self.act_space = obs_space, act_space
-        self.discount, self.entropy_coef, self.value_coef = discount, entropy_coef, value_coef
+        self.discount, self.entropy_coef,\
+            self.value_coef = discount, entropy_coef, value_coef
         self.nproc, self.seg_len = nproc, seg_len
         self.device = device
 
@@ -168,9 +169,11 @@ class ActorCritic:
         elif len(obs_space.shape) == 3:
             if shared_net:
                 self.actor_and_critic = Model.SimpleCNN(n_in=obs_space.shape,
-                                                        n_out=[act_space.n, 1]).to(device)
+                                                        n_out=[act_space.n,
+                                                               1]).to(device)
                 self.actor = lambda obses: self.actor_and_critic(obses, head=0)
-                self.critic = lambda obses: self.actor_and_critic(obses, head=1)
+                self.critic = lambda obses: self.actor_and_critic(obses,
+                                                                  head=1)
             else:
                 self.actor = Model.SimpleCNN(n_in=obs_space.shape,
                                              n_out=act_space.n).to(device)
@@ -178,48 +181,48 @@ class ActorCritic:
                                               n_out=1).to(device)
             self.state_dtype = torch.uint8
         else:
-            print ("observation shape not supported:", obs_space.shape)
+            print("observation shape not supported:", obs_space.shape)
             raise
 
         self.shared_net = shared_net
-        # Other people like to use RMSprop for policy gradient... but neither of them is perfect
-        # if shared_net:
-        #     self.optimizer = torch.optim.RMSprop(self.actor_and_critic.parameters(), lr=lr, alpha=0.99, eps=1e-5)
-        # else:
-        #     self.optimizer = torch.optim.RMSprop(list(self.actor.parameters()) + list(self.critic.parameters()),
-        #                                       lr=lr, alpha=0.99, eps=1e-5)
 
         if shared_net:
-            self.optimizer = torch.optim.Adam(self.actor_and_critic.parameters(),
-                                              lr=lr, betas=(0.9,0.99), eps=1e-6)
-            print ('shared net = True, parameters to optimize:',
-                [(name, p.shape, p.requires_grad) for name,p in self.actor_and_critic.named_parameters()],
-                '\n')
+            self.optimizer = \
+                torch.optim.Adam(self.actor_and_critic.parameters(),
+                                 lr=lr, betas=(0.9, 0.99),
+                                 eps=1e-6)
+            print('shared net = True, parameters to optimize:',
+                  [(name, p.shape, p.requires_grad) for name, p in
+                   self.actor_and_critic.named_parameters()],
+                  '\n')
         else:
-            self.optimizer = torch.optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=lr,
-                betas=(0.9,0.99), eps=1e-6)
-            print ('shared net = False, parameters to optimize:',
-                [(name, p.shape, p.requires_grad) for name,p in list(self.actor.named_parameters()) + list(self.critic.named_parameters())],
-                '\n')
+            self.optimizer = torch.optim.Adam(list(self.actor.parameters()) +
+                                              list(self.critic.parameters()),
+                                              lr=lr, betas=(0.9, 0.99),
+                                              eps=1e-6)
+            print('shared net = False, parameters to optimize:',
+                  [(name, p.shape, p.requires_grad) for name, p in
+                   list(self.actor.named_parameters()) +
+                   list(self.critic.named_parameters())],
+                  '\n')
 
-
-        self.states = torch.empty((nproc, seg_len) + obs_space.shape, dtype=self.state_dtype)
-        self.actions = torch.empty((nproc, seg_len) + act_space.shape, dtype=torch.long)
+        self.states = torch.empty((nproc, seg_len) + obs_space.shape,
+                                  dtype=self.state_dtype)
+        self.actions = torch.empty((nproc, seg_len) + act_space.shape,
+                                   dtype=torch.long)
         self.rewards = torch.empty((nproc, seg_len), dtype=torch.float32)
         # self.advantages = torch.empty((nproc, seg_len), dtype=torch.float32)
         self.step = 0
         self.last_reset = [0] * nproc
 
     def act(self, obses):
-        obses = torch.as_tensor(obses, device=self.device, dtype=self.state_dtype)
+        obses = torch.as_tensor(obses, device=self.device,
+                                dtype=self.state_dtype)
         dist = Categorical(logits=self.actor(obses))
         actions = dist.sample()
         return actions.tolist()
 
     def observe(self, obses, actions, transitions):
-        nproc = len(obses)
-        # self.states[:, self.step] = obses
-        # self.actions[:, self.step] = actions
         for i, (sn, r, terminal, _) in enumerate(transitions):
             self.states[i, self.step] = torch.as_tensor(obses[i],
                                                         dtype=self.state_dtype)
@@ -247,9 +250,6 @@ class ActorCritic:
 
         values = self.critic(states).squeeze(-1)
         advantage = rewards - values
-        # advantage_detach = torch.clamp(advantage.detach(), -1, 1)
-        # advantage = advantage.clamp(-2, 2).detach() + advantage - advantage.detach()
-        # advantage = (advantage - advantage.mean().detach())/ (1.0 + advantage.std().detach())
         advantage = advantage / (1.0 + advantage.std().detach())
         advantage_detach = advantage.detach()  # self.advantage_normalizer
 
@@ -258,7 +258,8 @@ class ActorCritic:
         dist = Categorical(logits=logits)
 
         # <<< Your Code Here
-        # use 'advantage_detach', 'dist' and 'actions' to compute this; double-check the sign of your expression!
+        # use 'advantage_detach', 'dist' and 'actions' to compute this
+        # double-check the sign of your expression!
         policy_loss = (advantage_detach*dist.log_prob(actions)).mean()
 
         # use the entropy function of 'dist' to compute this
@@ -268,7 +269,8 @@ class ActorCritic:
         value_loss = advantage.pow(2).mean()
         # Your Code Ends >>>
 
-        loss = -policy_loss - self.entropy_coef * entropy_loss + self.value_coef * value_loss
+        loss = -policy_loss - self.entropy_coef * entropy_loss + \
+            self.value_coef * value_loss
 
         # print (policy_loss.item(), entropy_loss.item(), value_loss.item())
 
@@ -276,7 +278,8 @@ class ActorCritic:
         self.optimizer.zero_grad()
         loss.backward()
         if self.shared_net:
-            torch.nn.utils.clip_grad_norm_(self.actor_and_critic.parameters(), 0.5)
+            torch.nn.utils.clip_grad_norm_(self.actor_and_critic.parameters(),
+                                           0.5)
         else:
             torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
             torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
@@ -292,9 +295,11 @@ class ActorCritic:
 
     def save(self, path):
         if self.shared_net:
-            torch.save([self.actor_and_critic.state_dict(), self.optimizer.state_dict()], path)
+            torch.save([self.actor_and_critic.state_dict(),
+                        self.optimizer.state_dict()], path)
         else:
-            torch.save([self.actor.state_dict(), self.critic.state_dict(), self.optimizer.state_dict()], path)
+            torch.save([self.actor.state_dict(), self.critic.state_dict(),
+                        self.optimizer.state_dict()], path)
 
     def load(self, path):
         states = torch.load(path, map_location=self.device)
