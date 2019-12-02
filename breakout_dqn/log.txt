@@ -1,0 +1,1 @@
+Namespace(algo='dqn', batch_size=32, checkpoint_freq=500000, discount=0.99, ent_coef=0.01, env='BreakoutDeterministic-v4', eps_decay=200000, frame_skip=1, frame_stack=4, load='', log='log.txt', lr=0.0001, niter=2000000, nproc=2, parallel_env=0, print_freq=500, replay_size=1000000, save_dir='breakout_dqn/', target_update=2500, train_freq=2, train_start=5000, value_coef=0.5)
